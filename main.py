@@ -10,12 +10,15 @@
 import pygame
 import sys
 import math
-import os   # <--- 新增这一行
+import os
 
 # ==================== 基础配置 ====================
 SCREEN_WIDTH = 900
 SCREEN_HEIGHT = 700
 FPS = 60
+
+# 资源路径
+ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
 
 # 颜色
 BG_COLOR       = (28, 36, 52)
@@ -51,23 +54,19 @@ BOARD_BOTTOM    = 620
 BOARD_CENTER_Y  = (BOARD_TOP + BOARD_BOTTOM) // 2
 
 # ==================== 关卡数据 ====================
-# None 表示空格；'U'/'D'/'L'/'R' 表示四个方向的箭头
 LEVELS = [
-    # 关卡 1：3x3 简单
-    [
+    [   # 关卡 1：3x3 简单
         [None, None, 'R'],
         [None, 'U', None],
         ['L', None, None],
     ],
-    # 关卡 2：4x4 中等
-    [
+    [   # 关卡 2：4x4 中等
         [None, 'R', None, None],
         ['L', None, 'R', None],
         [None, None, 'U', 'U'],
         [None, None, None, 'D'],
     ],
-    # 关卡 3：5x5 较难
-    [
+    [   # 关卡 3：5x5 较难
         ['R', None, None, None, None],
         [None, 'U', None, None, 'L'],
         [None, None, 'U', 'D', None],
@@ -76,13 +75,54 @@ LEVELS = [
     ],
 ]
 
+# ==================== 资源加载工具 ====================
+def load_audio(filename):
+    """加载音频文件，若不存在则返回 None"""
+    path = os.path.join(ASSETS_DIR, filename)
+    if os.path.exists(path):
+        try:
+            return pygame.mixer.Sound(path)
+        except pygame.error:
+            print(f"无法加载音频: {path}")
+    return None
+
+# 修改 load_image 函数
+def load_image(filename, size=None):
+    path = os.path.join(ASSETS_DIR, filename)
+    if os.path.exists(path):
+        print(f"✅ 成功找到图片: {path}")  # <--- 加这句
+        try:
+            img = pygame.image.load(path).convert_alpha()
+            if size:
+                img = pygame.transform.scale(img, size)
+            return img
+        except pygame.error as e:
+            print(f"❌ 图片加载失败: {e}")  # <--- 加这句
+    else:
+        print(f"❌ 找不到图片: {path}")    # <--- 加这句
+    return None
+
+# 修改 play_bgm 函数
+def play_bgm():
+    bgm_path = os.path.join(ASSETS_DIR, 'bgm.mp3') # 如果转了wav，这里改成 'bgm.wav'
+    if os.path.exists(bgm_path):
+        print(f"✅ 成功找到BGM: {bgm_path}")  # <--- 加这句
+        try:
+            pygame.mixer.music.load(bgm_path)
+            pygame.mixer.music.set_volume(0.8)  # 调大音量到80%测试
+            pygame.mixer.music.play(-1)
+            print("✅ BGM 开始播放")  # <--- 加这句
+        except pygame.error as e:
+            print(f"❌ BGM播放失败: {e}")  # <--- 加这句
+    else:
+        print(f"❌ 找不到BGM: {bgm_path}")  # <--- 加这句
+
 # ==================== 字体工具 ====================
 _font_cache = {}
 
 def get_font(size, bold=False):
     key = (size, bold)
     if key not in _font_cache:
-        # 直接加载 Windows 系统中的中文字体文件，绕过 SysFont 的兼容性问题
         font_path = None
         possible_fonts = [
             'C:/Windows/Fonts/msyh.ttc',   # 微软雅黑
@@ -97,16 +137,15 @@ def get_font(size, bold=False):
         if font_path:
             _font_cache[key] = pygame.font.Font(font_path, size)
         else:
-            # 如果系统缺少上述中文字体，则回退到默认字体
             _font_cache[key] = pygame.font.Font(None, size)
             
         if bold:
             _font_cache[key].set_bold(True)
             
     return _font_cache[key]
+
 def draw_text(screen, text, size, x, y, color=TEXT_COLOR,
               center=True, bold=False, alpha=255):
-    """在屏幕上绘制文字，返回文字矩形"""
     font = get_font(size, bold)
     surf = font.render(text, True, color)
     if alpha < 255:
@@ -119,70 +158,41 @@ def draw_text(screen, text, size, x, y, color=TEXT_COLOR,
     screen.blit(surf, rect)
     return rect
 
-
 def draw_button(screen, text, rect, mouse_pos, font_size=26):
-    """绘制按钮，鼠标悬停时变色"""
     hovered = rect.collidepoint(mouse_pos)
     color = BUTTON_HOVER if hovered else BUTTON_BG
     pygame.draw.rect(screen, color, rect, border_radius=12)
     pygame.draw.rect(screen, (255, 255, 255, 60), rect, 2, border_radius=12)
     draw_text(screen, text, font_size, rect.centerx, rect.centery, BUTTON_TEXT)
 
-
 def draw_heart(screen, cx, cy, size, color):
-    """绘制心形（用两个圆 + 一个三角形拼成）"""
     r = size / 2
-    pygame.draw.circle(screen, color,
-                       (int(cx - r * 0.5), int(cy - r * 0.35)), int(r * 0.55))
-    pygame.draw.circle(screen, color,
-                       (int(cx + r * 0.5), int(cy - r * 0.35)), int(r * 0.55))
+    pygame.draw.circle(screen, color, (int(cx - r * 0.5), int(cy - r * 0.35)), int(r * 0.55))
+    pygame.draw.circle(screen, color, (int(cx + r * 0.5), int(cy - r * 0.35)), int(r * 0.55))
     pygame.draw.polygon(screen, color, [
         (cx - r * 1.02, cy - r * 0.10),
         (cx + r * 1.02, cy - r * 0.10),
         (cx, cy + r * 1.15),
     ])
 
-
-def draw_arrow(screen, cx, cy, direction, size,
-               color=ARROW_COLOR, alpha=255):
-    """绘制一个箭头（多边形），支持透明度"""
+def draw_arrow(screen, cx, cy, direction, size, color=ARROW_COLOR, alpha=255):
     half = size / 2
-    hl = half * 0.90   # 箭头头部长度
-    wg = half * 0.85   # 箭头翼展
-    sh = half * 0.30   # 箭杆半宽
+    hl = half * 0.90
+    wg = half * 0.85
+    sh = half * 0.30
 
     if direction == 'R':
-        pts = [(cx + half, cy),
-               (cx + half - hl, cy - wg),
-               (cx + half - hl, cy - sh),
-               (cx - half, cy - sh),
-               (cx - half, cy + sh),
-               (cx + half - hl, cy + sh),
-               (cx + half - hl, cy + wg)]
+        pts = [(cx + half, cy), (cx + half - hl, cy - wg), (cx + half - hl, cy - sh),
+               (cx - half, cy - sh), (cx - half, cy + sh), (cx + half - hl, cy + sh), (cx + half - hl, cy + wg)]
     elif direction == 'L':
-        pts = [(cx - half, cy),
-               (cx - half + hl, cy - wg),
-               (cx - half + hl, cy - sh),
-               (cx + half, cy - sh),
-               (cx + half, cy + sh),
-               (cx - half + hl, cy + sh),
-               (cx - half + hl, cy + wg)]
+        pts = [(cx - half, cy), (cx - half + hl, cy - wg), (cx - half + hl, cy - sh),
+               (cx + half, cy - sh), (cx + half, cy + sh), (cx - half + hl, cy + sh), (cx - half + hl, cy + wg)]
     elif direction == 'U':
-        pts = [(cx, cy - half),
-               (cx - wg, cy - half + hl),
-               (cx - sh, cy - half + hl),
-               (cx - sh, cy + half),
-               (cx + sh, cy + half),
-               (cx + sh, cy - half + hl),
-               (cx + wg, cy - half + hl)]
+        pts = [(cx, cy - half), (cx - wg, cy - half + hl), (cx - sh, cy - half + hl),
+               (cx - sh, cy + half), (cx + sh, cy + half), (cx + sh, cy - half + hl), (cx + wg, cy - half + hl)]
     elif direction == 'D':
-        pts = [(cx, cy + half),
-               (cx - wg, cy + half - hl),
-               (cx - sh, cy + half - hl),
-               (cx - sh, cy - half),
-               (cx + sh, cy - half),
-               (cx + sh, cy + half - hl),
-               (cx + wg, cy + half - hl)]
+        pts = [(cx, cy + half), (cx - wg, cy + half - hl), (cx - sh, cy + half - hl),
+               (cx - sh, cy - half), (cx + sh, cy - half), (cx + sh, cy + half - hl), (cx + wg, cy + half - hl)]
     else:
         return
 
@@ -190,33 +200,44 @@ def draw_arrow(screen, cx, cy, direction, size,
         pygame.draw.polygon(screen, color, pts)
         pygame.draw.polygon(screen, (255, 255, 255, 90), pts, 2)
     else:
-        # 局部 Surface 实现透明绘制
         xs = [p[0] for p in pts]
         ys = [p[1] for p in pts]
         minx, maxx = min(xs) - 2, max(xs) + 2
         miny, maxy = min(ys) - 2, max(ys) + 2
         w, h = int(maxx - minx), int(maxy - miny)
-        if w <= 0 or h <= 0:
-            return
+        if w <= 0 or h <= 0: return
         surf = pygame.Surface((w, h), pygame.SRCALPHA)
         local_pts = [(p[0] - minx, p[1] - miny) for p in pts]
         pygame.draw.polygon(surf, (*color, alpha), local_pts)
         screen.blit(surf, (minx, miny))
 
+def draw_star(screen, cx, cy, size, color):
+    pts = []
+    for i in range(10):
+        angle = math.pi / 2 + i * math.pi / 5
+        r = size if i % 2 == 0 else size * 0.42
+        pts.append((cx + r * math.cos(angle), cy - r * math.sin(angle)))
+    pygame.draw.polygon(screen, color, pts)
 
 # ==================== 游戏主类 ====================
 class Game:
     def __init__(self):
-        self.state = 'menu'          # menu / playing / level_clear / game_over / all_clear
+        self.state = 'menu'
         self.level_index = 0
         self.board = []
         self.max_mistakes = 3
         self.mistakes_left = 3
-        self.flying = []             # 飞行动画列表
-        self.shaking = {}            # (r, c) -> 剩余抖动时间
+        self.flying = []
+        self.shaking = {}
         self.message = ''
         self.message_timer = 0.0
         self.time_elapsed = 0.0
+
+        # 加载资源 (音效和图片)
+        self.bg_menu_img = load_image('bg_menu.png', (SCREEN_WIDTH, SCREEN_HEIGHT))
+        self.bg_game_img = load_image('bg_game.png', (SCREEN_WIDTH, SCREEN_HEIGHT))
+        self.click_sound = load_audio('click.mp3')
+        self.error_sound = load_audio('error.mp3')
 
         # 按钮矩形
         self.btn_start     = pygame.Rect(SCREEN_WIDTH // 2 - 130, 440, 260, 64)
@@ -232,8 +253,7 @@ class Game:
 
     def load_level(self, idx):
         self.level_index = idx
-        src = LEVELS[idx]
-        self.board = [row[:] for row in src]
+        self.board = [row[:] for row in LEVELS[idx]]
         self.mistakes_left = self.max_mistakes
         self.flying = []
         self.shaking = {}
@@ -253,75 +273,76 @@ class Game:
         return x0, y0, CELL_SIZE
 
     def cell_at(self, pos):
-        if not self.board:
-            return None
+        if not self.board: return None
         x0, y0, cs = self.board_geometry()
         n = len(self.board)
         mx, my = pos
-        if not (x0 <= mx < x0 + n * cs and y0 <= my < y0 + n * cs):
-            return None
+        if not (x0 <= mx < x0 + n * cs and y0 <= my < y0 + n * cs): return None
         col = (mx - x0) // cs
         row = (my - y0) // cs
         return int(row), int(col)
 
     def is_blocked(self, row, col):
-        """判断 (row, col) 处的箭头前方是否有阻挡"""
         d = self.board[row][col]
-        if d is None:
-            return False
+        if d is None: return False
         dr, dc = DIRECTIONS[d]
         n = len(self.board)
         r, c = row + dr, col + dc
         while 0 <= r < n and 0 <= c < n:
-            if self.board[r][c] is not None:
-                return True
-            r += dr
-            c += dc
+            if self.board[r][c] is not None: return True
+            r += dr; c += dc
         return False
 
     # ---------- 点击处理 ----------
     def handle_click(self, pos):
         if self.state == 'menu':
             if self.btn_start.collidepoint(pos):
+                if self.click_sound: self.click_sound.play()
                 self.start_game()
 
         elif self.state == 'playing':
             if self.btn_restart.collidepoint(pos):
+                if self.click_sound: self.click_sound.play()
                 self.load_level(self.level_index)
             elif self.btn_menu_game.collidepoint(pos):
+                if self.click_sound: self.click_sound.play()
                 self.state = 'menu'
             else:
                 self.try_click_cell(pos)
 
         elif self.state == 'level_clear':
             if self.btn_primary.collidepoint(pos):
+                if self.click_sound: self.click_sound.play()
                 self.load_level(self.level_index + 1)
                 self.state = 'playing'
             elif self.btn_secondary.collidepoint(pos):
+                if self.click_sound: self.click_sound.play()
                 self.state = 'menu'
 
         elif self.state == 'game_over':
             if self.btn_primary.collidepoint(pos):
+                if self.click_sound: self.click_sound.play()
                 self.load_level(self.level_index)
                 self.state = 'playing'
             elif self.btn_secondary.collidepoint(pos):
+                if self.click_sound: self.click_sound.play()
                 self.state = 'menu'
 
         elif self.state == 'all_clear':
             if self.btn_secondary.collidepoint(pos):
+                if self.click_sound: self.click_sound.play()
                 self.level_index = 0
                 self.state = 'menu'
 
     def try_click_cell(self, pos):
         cell = self.cell_at(pos)
-        if cell is None:
-            return
+        if cell is None: return
         r, c = cell
-        if self.board[r][c] is None:
-            return
+        if self.board[r][c] is None: return
 
         if self.is_blocked(r, c):
-            # ---- 被阻挡：扣失误、抖动、提示 ----
+            # ---- 被阻挡 ----
+            if self.error_sound: self.error_sound.play()  # 播放错误音效
             self.mistakes_left -= 1
             self.shaking[(r, c)] = 0.5
             self.message = '前方有阻挡！'
@@ -329,7 +350,8 @@ class Game:
             if self.mistakes_left <= 0:
                 self.state = 'game_over'
         else:
-            # ---- 无阻挡：飞出棋盘 ----
+            # ---- 无阻挡 ----
+            if self.click_sound: self.click_sound.play()  # 播放点击音效
             x0, y0, cs = self.board_geometry()
             cx = x0 + c * cs + cs // 2
             cy = y0 + r * cs + cs // 2
@@ -345,7 +367,6 @@ class Game:
 
     # ---------- 每帧更新 ----------
     def update(self, dt):
-        # 飞行动画
         alive = []
         for f in self.flying:
             dr, dc = DIRECTIONS[f['dir']]
@@ -353,23 +374,17 @@ class Game:
             f['x'] += dc * speed * dt
             f['y'] += dr * speed * dt
             f['alpha'] -= 350 * dt
-            if f['alpha'] > 0:
-                alive.append(f)
+            if f['alpha'] > 0: alive.append(f)
         self.flying = alive
 
-        # 抖动动画
         for k in list(self.shaking.keys()):
             self.shaking[k] -= dt
-            if self.shaking[k] <= 0:
-                del self.shaking[k]
+            if self.shaking[k] <= 0: del self.shaking[k]
 
-        # 文字提示
         if self.message_timer > 0:
             self.message_timer -= dt
-            if self.message_timer <= 0:
-                self.message = ''
+            if self.message_timer <= 0: self.message = ''
 
-        # 计时
         if self.state == 'playing':
             self.time_elapsed += dt
 
@@ -381,87 +396,70 @@ class Game:
             self.draw_playing(screen, mouse_pos)
         elif self.state == 'level_clear':
             self.draw_playing(screen, mouse_pos)
-            self.draw_result_overlay(screen, mouse_pos,
-                                     '关卡通关！', GREEN,
-                                     '进入下一关', True)
+            self.draw_result_overlay(screen, mouse_pos, '关卡通关！', GREEN, '进入下一关', True)
         elif self.state == 'game_over':
             self.draw_playing(screen, mouse_pos)
-            self.draw_result_overlay(screen, mouse_pos,
-                                     '挑战失败', RED,
-                                     '重新挑战', False)
+            self.draw_result_overlay(screen, mouse_pos, '挑战失败', RED, '重新挑战', False)
         elif self.state == 'all_clear':
             self.draw_all_clear(screen, mouse_pos)
 
     # ---------- 开始界面 ----------
     def draw_menu(self, screen, mouse_pos):
-        # 装饰性箭头
-        draw_arrow(screen, 180, 560, 'R', 70, (60, 80, 110))
-        draw_arrow(screen, 720, 560, 'L', 70, (60, 80, 110))
-        draw_arrow(screen, 180, 130, 'U', 70, (60, 80, 110))
-        draw_arrow(screen, 720, 130, 'D', 70, (60, 80, 110))
+        # 1. 渲染背景图
+        if self.bg_menu_img:
+            screen.blit(self.bg_menu_img, (0, 0))
+            # 加一层半透明黑幕，防止背景太亮看不清文字
+            overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 0))
+            screen.blit(overlay, (0, 0))
+        else:
+            screen.fill(BG_COLOR)
 
+        # 2. 绘制标题文字和按钮
         draw_text(screen, '一 箭 又 一 箭', 78, SCREEN_WIDTH // 2, 200, GOLD, bold=True)
         draw_text(screen, 'OneArrowAgain', 26, SCREEN_WIDTH // 2, 260, TEXT_DIM)
 
         draw_text(screen, '规则说明', 24, SCREEN_WIDTH // 2, 320, TEXT_COLOR, bold=True)
-        draw_text(screen, '点击箭头，若前方无阻挡，它会飞出棋盘；', 20,
-                  SCREEN_WIDTH // 2, 358, TEXT_DIM)
-        draw_text(screen, '若前方有阻挡，则会撞击并消耗一次失误机会。', 20,
-                  SCREEN_WIDTH // 2, 388, TEXT_DIM)
-        draw_text(screen, '每关有 3 次失误机会，清空全部箭头即可通关。', 20,
-                  SCREEN_WIDTH // 2, 418, TEXT_DIM)
+        draw_text(screen, '点击箭头，若前方无阻挡，它会飞出棋盘；', 20, SCREEN_WIDTH // 2, 358, TEXT_DIM)
+        draw_text(screen, '若前方有阻挡，则会撞击并消耗一次失误机会。', 20, SCREEN_WIDTH // 2, 388, TEXT_DIM)
+        draw_text(screen, '每关有 3 次失误机会，清空全部箭头即可通关。', 20, SCREEN_WIDTH // 2, 418, TEXT_DIM)
 
         draw_button(screen, '开 始 游 戏', self.btn_start, mouse_pos, font_size=30)
 
     # ---------- 游戏界面 ----------
     def draw_playing(self, screen, mouse_pos):
-        # 顶部信息栏
+        if self.bg_game_img:
+            screen.blit(self.bg_game_img, (0, 0))
         pygame.draw.rect(screen, TOP_BAR_BG, (0, 0, SCREEN_WIDTH, 112))
-        pygame.draw.line(screen, (55, 75, 105),
-                         (0, 112), (SCREEN_WIDTH, 112), 2)
+        pygame.draw.line(screen, (55, 75, 105), (0, 112), (SCREEN_WIDTH, 112), 2)
 
-        draw_text(screen, f'关卡 {self.level_index + 1} / {len(LEVELS)}',
-                  26, 40, 40, TEXT_COLOR, center=False, bold=True)
-        draw_text(screen, f'时间: {int(self.time_elapsed)} s',
-                  20, 40, 78, TEXT_DIM, center=False)
+        draw_text(screen, f'关卡 {self.level_index + 1} / {len(LEVELS)}', 26, 40, 40, TEXT_COLOR, center=False, bold=True)
+        draw_text(screen, f'时间: {int(self.time_elapsed)} s', 20, 40, 78, TEXT_DIM, center=False)
+        draw_text(screen, f'剩余箭头: {self.count_arrows()}', 28, SCREEN_WIDTH // 2, 55, TEXT_COLOR, bold=True)
 
-        draw_text(screen, f'剩余箭头: {self.count_arrows()}',
-                  28, SCREEN_WIDTH // 2, 55, TEXT_COLOR, bold=True)
-
-        # 失误次数（心形）
         draw_text(screen, '失误:', 22, 640, 45, TEXT_COLOR, center=False)
         for i in range(self.max_mistakes):
             color = HEART_RED if i < self.mistakes_left else HEART_GRAY
             draw_heart(screen, 715 + i * 42, 55, 30, color)
 
-        # 棋盘
         self.draw_board(screen)
 
-        # 飞行动画
         for f in self.flying:
-            draw_arrow(screen, f['x'], f['y'], f['dir'],
-                       CELL_SIZE * 0.72, alpha=int(f['alpha']))
+            draw_arrow(screen, f['x'], f['y'], f['dir'], CELL_SIZE * 0.72, alpha=int(f['alpha']))
 
-        # 文字提示
         if self.message:
             alpha = max(0, min(255, int(255 * self.message_timer)))
-            draw_text(screen, self.message, 30, SCREEN_WIDTH // 2, 165,
-                      RED, bold=True, alpha=alpha)
+            draw_text(screen, self.message, 30, SCREEN_WIDTH // 2, 165, RED, bold=True, alpha=alpha)
 
-        # 底部按钮
         draw_button(screen, '重新开始', self.btn_restart, mouse_pos, font_size=22)
         draw_button(screen, '返回主菜单', self.btn_menu_game, mouse_pos, font_size=22)
 
     def draw_board(self, screen):
-        if not self.board:
-            return
+        if not self.board: return
         n = len(self.board)
         x0, y0, cs = self.board_geometry()
 
-        # 棋盘底板
-        pygame.draw.rect(screen, BOARD_BG,
-                         (x0 - 12, y0 - 12, n * cs + 24, n * cs + 24),
-                         border_radius=18)
+        pygame.draw.rect(screen, BOARD_BG, (x0 - 12, y0 - 12, n * cs + 24, n * cs + 24), border_radius=18)
 
         for r in range(n):
             for c in range(n):
@@ -472,7 +470,6 @@ class Game:
                 pygame.draw.rect(screen, CELL_BORDER, rect, 2, border_radius=10)
 
                 if self.board[r][c]:
-                    # 抖动偏移
                     off = 0
                     is_shaking = (r, c) in self.shaking
                     if is_shaking:
@@ -481,36 +478,27 @@ class Game:
                         off = math.sin((0.5 - rem) * 60) * 9 * prog
 
                     color = ARROW_FAIL if is_shaking else ARROW_COLOR
-                    draw_arrow(screen, x + cs // 2 + off, y + cs // 2,
-                               self.board[r][c], cs * 0.72, color=color)
+                    draw_arrow(screen, x + cs // 2 + off, y + cs // 2, self.board[r][c], cs * 0.72, color=color)
 
     # ---------- 结算界面 ----------
-    def draw_result_overlay(self, screen, mouse_pos,
-                            title, title_color, primary_text, is_next):
-        # 半透明遮罩
+    def draw_result_overlay(self, screen, mouse_pos, title, title_color, primary_text, is_next):
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 180))
         screen.blit(overlay, (0, 0))
 
-        # 面板
         panel = pygame.Rect(SCREEN_WIDTH // 2 - 220, 230, 440, 400)
         pygame.draw.rect(screen, (40, 52, 74), panel, border_radius=20)
         pygame.draw.rect(screen, (90, 120, 160), panel, 3, border_radius=20)
 
-        draw_text(screen, title, 54, SCREEN_WIDTH // 2, 310,
-                  title_color, bold=True)
+        draw_text(screen, title, 54, SCREEN_WIDTH // 2, 310, title_color, bold=True)
 
         if is_next:
-            draw_text(screen, f'关卡 {self.level_index + 1} 完成！', 22,
-                      SCREEN_WIDTH // 2, 375, TEXT_DIM)
+            draw_text(screen, f'关卡 {self.level_index + 1} 完成！', 22, SCREEN_WIDTH // 2, 375, TEXT_DIM)
         else:
-            draw_text(screen, '失误次数已耗尽', 22,
-                      SCREEN_WIDTH // 2, 375, TEXT_DIM)
+            draw_text(screen, '失误次数已耗尽', 22, SCREEN_WIDTH // 2, 375, TEXT_DIM)
 
-        draw_text(screen, f'用时: {int(self.time_elapsed)} 秒', 22,
-                  SCREEN_WIDTH // 2, 410, TEXT_COLOR)
+        draw_text(screen, f'用时: {int(self.time_elapsed)} 秒', 22, SCREEN_WIDTH // 2, 410, TEXT_COLOR)
 
-        # 按钮
         draw_button(screen, primary_text, self.btn_primary, mouse_pos)
         draw_button(screen, '返回主菜单', self.btn_secondary, mouse_pos, font_size=24)
 
@@ -523,14 +511,10 @@ class Game:
         pygame.draw.rect(screen, (40, 52, 74), panel, border_radius=20)
         pygame.draw.rect(screen, GOLD, panel, 3, border_radius=20)
 
-        draw_text(screen, '全部通关！', 62, SCREEN_WIDTH // 2, 285,
-                  GOLD, bold=True)
-        draw_text(screen, '恭喜你完成了所有关卡', 24,
-                  SCREEN_WIDTH // 2, 355, TEXT_COLOR)
-        draw_text(screen, f'共 {len(LEVELS)} 关，总用时 {int(self.time_elapsed)} 秒',
-                  20, SCREEN_WIDTH // 2, 400, TEXT_DIM)
+        draw_text(screen, '全部通关！', 62, SCREEN_WIDTH // 2, 285, GOLD, bold=True)
+        draw_text(screen, '恭喜你完成了所有关卡', 24, SCREEN_WIDTH // 2, 355, TEXT_COLOR)
+        draw_text(screen, f'共 {len(LEVELS)} 关，总用时 {int(self.time_elapsed)} 秒', 20, SCREEN_WIDTH // 2, 400, TEXT_DIM)
 
-        # 三颗星
         for i in range(3):
             cx = SCREEN_WIDTH // 2 - 70 + i * 70
             draw_star(screen, cx, 470, 26, GOLD)
@@ -538,19 +522,17 @@ class Game:
         draw_button(screen, '返回主菜单', self.btn_secondary, mouse_pos, font_size=24)
 
 
-def draw_star(screen, cx, cy, size, color):
-    """画五角星"""
-    pts = []
-    for i in range(10):
-        angle = math.pi / 2 + i * math.pi / 5
-        r = size if i % 2 == 0 else size * 0.42
-        pts.append((cx + r * math.cos(angle), cy - r * math.sin(angle)))
-    pygame.draw.polygon(screen, color, pts)
-
-
 # ==================== 程序入口 ====================
 def main():
     pygame.init()
+    
+    # 初始化音频混合器（必须在 pygame.init() 之后）
+    try:
+        pygame.mixer.init()
+        play_bgm()  # 开始播放背景音乐
+    except pygame.error:
+        print("音频设备初始化失败，将不播放声音。")
+
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption('一箭又一箭 - OneArrowAgain')
     clock = pygame.time.Clock()
