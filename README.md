@@ -44,14 +44,7 @@
 - 游戏全程中文界面，运行流畅。
 
 ## 游戏截图
-- 开始界面
-https://screenshots/%E5%BC%80%E5%A7%8B%E7%95%8C%E9%9D%A2.png
-- 游戏界面
-https://screenshots/%E6%B8%B8%E6%88%8F%E7%95%8C%E9%9D%A2.png
-- 通关界面
-https://screenshots/%E9%80%9A%E5%85%B3%E7%95%8C%E9%9D%A2.png
-- 失败碰撞界面
-https://screenshots/%E5%A4%B1%E8%B4%A5%E7%A2%B0%E6%92%9E%E7%95%8C%E9%9D%A2.png
+- screenshots文件夹内
 
 ## 开发过程与 AIGC 协作说明
 - 本项目在开发过程中使用了 AIGC 工具（如 DeepSeek）进行辅助，具体协作过程包括：
